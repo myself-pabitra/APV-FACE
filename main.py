@@ -87,6 +87,7 @@ async def process_user_data(user_id: int, video_file: UploadFile = File(...), aa
         ret, frame = cap.read()
         if not ret:
             break
+
         frames.append(frame)
 
     # Calculate accuracy percentages based on the face recognition results
