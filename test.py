@@ -64,7 +64,7 @@ def compute_face_encodings(image, landmarks):
             min(point[1] for point in landmark),
             max(point[0] for point in landmark),
             max(point[1] for point in landmark),
-            min(point[0] for point in landmark)
+            min(point[0] for point in landmark)   
         )
         face_encoding = face_recognition.face_encodings(
             rgb_image, [(top, right, bottom, left)])
@@ -194,3 +194,6 @@ async def process_user_data(user_id: int, video_file: UploadFile = File(...), aa
 
     # Return accuracy percentages in the response
     return {"aadhar_accuracy": aadhar_accuracy, "pan_accuracy": pan_accuracy}
+
+
+# cooment
