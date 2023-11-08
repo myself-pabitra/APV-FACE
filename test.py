@@ -14,23 +14,39 @@ UPLOAD_DIR = "./uploads"
 Path(UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
 
 # Load the face detection model from dlib with adjusted parameters
-face_detector = dlib.cnn_face_detection_model_v1(
-    "mmod_human_face_detector.dat")
+face_detector = dlib.cnn_face_detection_model_v1("mmod_human_face_detector.dat")
+
+
 
 # Function to preprocess an image to enhance its quality
 
+# def preprocess_image(image):
+
+#     # Resize the image to a standard size for consistent face detection
+#     # resized_image = cv2.resize(image, (640, 480))
+
+#     # Convert the resized image to grayscale
+#     gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+#     # gray_image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2GRAY)
+
+#     # Apply histogram equalization to improve contrast
+#     equalized_image = cv2.equalizeHist(gray_image)
+
+#     # Convert the equalized image back to BGR format
+#     equalized_bgr_image = cv2.cvtColor(equalized_image, cv2.COLOR_GRAY2BGR)
+#     return equalized_bgr_image
 
 
 def preprocess_image(image):
-    # Resize the image to a standard size for consistent face detection
-    resized_image = cv2.resize(image, (640, 480))
-    # Convert the resized image to grayscale
-    gray_image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2GRAY)
-    # Apply histogram equalization to improve contrast
-    equalized_image = cv2.equalizeHist(gray_image)
-    # Convert the equalized image back to BGR format
-    equalized_bgr_image = cv2.cvtColor(equalized_image, cv2.COLOR_GRAY2BGR)
-    return equalized_bgr_image
+    # Convert the image to BGR format
+    bgr_image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+    # Adjust bilateral filter parameters for noise reduction
+    filtered_image = cv2.bilateralFilter(bgr_image, d=9, sigmaColor=75, sigmaSpace=75)
+    
+    return filtered_image
+
+
 
 
 # Function to detect faces in a preprocessed image using dlib
@@ -64,22 +80,23 @@ def compute_face_encodings(image, landmarks):
             min(point[1] for point in landmark),
             max(point[0] for point in landmark),
             max(point[1] for point in landmark),
-            min(point[0] for point in landmark)   
+            min(point[0] for point in landmark)
         )
         face_encoding = face_recognition.face_encodings(
             rgb_image, [(top, right, bottom, left)])
         if face_encoding:
             face_encodings.append(face_encoding[0])
 
-        print(f"Number of faces detected: {len(landmarks)}")
-        print(f"Landmarks for the first face: {landmarks[0]}")
-        print(f"Face encodings for the first face: {face_encodings[0] if face_encodings else 'No encoding found'}")
+        # print(f"Number of faces detected: {len(landmarks)}")
+        # print(f"Landmarks for the first face: {landmarks[0]}")
+        # print(f"Face encodings for the first face: {face_encodings[0] if face_encodings else 'No encoding found'}")
 
     # Convert the list of face encodings to a 2D numpy array
     return np.array(face_encodings)
 
 
 def perform_face_recognition(frames, aadhar_face_encodings, pan_face_encodings):
+
     # Initialize lists to store accuracy for Aadhar and Pan card
     aadhar_accuracies = []
     pan_accuracies = []
@@ -89,6 +106,11 @@ def perform_face_recognition(frames, aadhar_face_encodings, pan_face_encodings):
         # Detect faces in the frame
         frame_landmarks = detect_faces_and_get_landmarks(frame)
         frame_face_encodings = compute_face_encodings(frame, frame_landmarks)
+
+
+        print("Length frame face encoding :" , len(frame_face_encodings))
+        print("Length Aadhar face encoding :" , len(aadhar_face_encodings))
+        print("Length Pan face encoding :" , len(pan_face_encodings))
 
 
         # Check if the input arrays have the correct shape
@@ -103,17 +125,17 @@ def perform_face_recognition(frames, aadhar_face_encodings, pan_face_encodings):
             frame_face_encodings, aadhar_face_encodings, metric='euclidean')
         # Calculate average distance for Aadhar card
         avg_aadhar_distance = np.mean(np.min(aadhar_distances, axis=1))
+        print("avg_aadhar_distance :",avg_aadhar_distance)
 
         # Calculate pairwise distances between frames and Pan card face encodings
         pan_distances = pairwise_distances(
             frame_face_encodings, pan_face_encodings, metric='euclidean')
         # Calculate average distance for Pan card
         avg_pan_distance = np.mean(np.min(pan_distances, axis=1))
+        print("avg_pan_distance : ", avg_pan_distance)
 
-        # Set dynamic accuracy thresholds based on detection confidence scores
-        aadhar_threshold = 0.5  # Adjust this threshold based on detection confidence
-        pan_threshold = 0.5  # Adjust this threshold based on detection confidence
-
+        # Set a threshold for face recognition accuracy (you can adjust this threshold)
+        accuracy_threshold = 0.6
 
         # Check if the average distance is below the accuracy threshold for Aadhar card
         if avg_aadhar_distance < accuracy_threshold:
@@ -159,34 +181,44 @@ async def process_user_data(user_id: int, video_file: UploadFile = File(...), aa
     # Detect faces in Aadhar and Pan card images after preprocessing
 
     aadhar_landmarks = detect_faces_and_get_landmarks(aadhar_image)
-    pan_landmarks = detect_faces_and_get_landmarks(pan_image)
+    pan_landmarks = detect_faces_and_get_landmarks(aadhar_image)
 
     aadhar_face_encodings = compute_face_encodings(
         aadhar_image, aadhar_landmarks)
     pan_face_encodings = compute_face_encodings(pan_image, pan_landmarks)
 
+
     # Load video frames using OpenCV
     cap = cv2.VideoCapture(video_path)
     frames = []
-    frame_number = 0
+    frame_landmarks_list = []
+    frame_face_encodings_list = []
+
     while True:
         ret, frame = cap.read()
         if not ret:
             break
-
         # Preprocess video frames for enhanced face detection
         preprocessed_frame = preprocess_image(frame)
+        # preprocessed_frame = frame
         frames.append(preprocessed_frame)
 
         frame_landmarks = detect_faces_and_get_landmarks(preprocessed_frame)
         frame_face_encodings = compute_face_encodings(preprocessed_frame, frame_landmarks)
 
-        # Print information about detected faces in each frame
-        # print(f"Frame {frame_number}: Number of faces detected: {len(frame_landmarks)}")
-        # print(f"Frame {frame_number}: Landmarks for the first face: {frame_landmarks[0] if frame_landmarks else 'No landmarks found'}")
-        # print(f"Frame {frame_number}: Face encodings for the first face: {frame_face_encodings[0] if frame_face_encodings else 'No encoding found'}")
-        
-        # frame_number += 1
+        frame_landmarks_list.append(frame_landmarks)
+        frame_face_encodings_list.append(frame_face_encodings)
+
+    # Iterate through the frames and print information about detected faces
+    # for frame_number, (frame_landmarks, frame_face_encodings) in enumerate(zip(frame_landmarks_list, frame_face_encodings_list)):
+    #     print(f"Frame {frame_number}: Number of faces detected: {len(frame_landmarks)}")
+    #     print(f"Frame {frame_number}: Landmarks for the first face: {frame_landmarks[0] if frame_landmarks else 'No landmarks found'}")
+    #     print(f"Frame {frame_number}: Face encodings for the first face: {frame_face_encodings[0] if frame_face_encodings else 'No encoding found'}")
+
+    #     if len(frame_face_encodings) > 0:
+    #         print(f"Frame {frame_number}: Face encodings for the first face: {frame_face_encodings[0]}")
+    #     else:
+    #         print(f"Frame {frame_number}: No encoding found")
 
     # Calculate accuracy percentages based on the face recognition results
     aadhar_accuracy, pan_accuracy = perform_face_recognition(
@@ -194,6 +226,3 @@ async def process_user_data(user_id: int, video_file: UploadFile = File(...), aa
 
     # Return accuracy percentages in the response
     return {"aadhar_accuracy": aadhar_accuracy, "pan_accuracy": pan_accuracy}
-
-
-# cooment
