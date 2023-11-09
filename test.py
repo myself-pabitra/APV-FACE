@@ -181,7 +181,7 @@ async def process_user_data(user_id: int, video_file: UploadFile = File(...), aa
     # Detect faces in Aadhar and Pan card images after preprocessing
 
     aadhar_landmarks = detect_faces_and_get_landmarks(aadhar_image)
-    pan_landmarks = detect_faces_and_get_landmarks(aadhar_image)
+    pan_landmarks = detect_faces_and_get_landmarks(pan_image)
 
     aadhar_face_encodings = compute_face_encodings(
         aadhar_image, aadhar_landmarks)
